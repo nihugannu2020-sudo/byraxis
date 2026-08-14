@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field, field_validator
@@ -33,16 +34,16 @@ def extract_text(content: object) -> str:
 class RecommendedBook(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     author: str = Field(min_length=1, max_length=100)
-    summary: str = Field(min_length=40, max_length=500)
-    genre: str = Field(min_length=1, max_length=40)
-    vibe: str = Field(min_length=1, max_length=40)
+    summary: str = Field(min_length=10, max_length=1000)
+    genre: str = Field(min_length=1, max_length=150)
+    vibe: str = Field(min_length=1, max_length=150)
 
     @field_validator("summary")
     @classmethod
     def summary_has_compact_length(cls, value: str) -> str:
         word_count = len(value.split())
-        if not 40 <= word_count <= 60:
-            raise ValueError("Book summaries must contain 40–60 words.")
+        if not 20 <= word_count <= 100:
+            raise ValueError("Book summaries must contain 20–100 words.")
         return value
 
 
@@ -68,14 +69,26 @@ class BookState(TypedDict):
     messages: Annotated[List, add_messages]
 
 
-def build_llm() -> ChatGoogleGenerativeAI:
+def build_llm():
     if not API_KEY:
         raise RuntimeError("Missing GOOGLE_API_KEY in the backend environment.")
+    if API_KEY.startswith("sk-or-"):
+        model = MODEL_NAME
+        if model == "gemini-3.5-flash":
+            model = "google/gemini-2.5-flash"
+        return ChatOpenAI(
+            model=model,
+            api_key=API_KEY,
+            base_url="https://openrouter.ai/api/v1",
+            max_tokens=4000,
+            temperature=0.7,
+            model_kwargs={"response_format": {"type": "json_object"}},
+        )
     return ChatGoogleGenerativeAI(
         model=MODEL_NAME,
         google_api_key=API_KEY,
         thinking_level="low",
-        max_output_tokens=850,
+        max_output_tokens=4000,
         max_retries=0,
         response_mime_type="application/json",
     )

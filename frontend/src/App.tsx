@@ -13,13 +13,6 @@ const BookCard = ({ book }: { book: Book }) => {
 
   return (
     <div className="book-card">
-      <div className="book-cover-container">
-        {book.coverImage ? (
-          <img src={book.coverImage} alt={`${book.title} cover`} className="book-cover" />
-        ) : (
-          <div className="book-cover-placeholder"><BookOpen size={32} /></div>
-        )}
-      </div>
       <div className="book-info">
         <h4 className="book-title">{book.title}</h4>
         <p className="book-author">by {book.author}</p>
