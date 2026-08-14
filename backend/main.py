@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from typing import Literal
@@ -7,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
 
-from graph import book_recommendation_graph, extract_text
+from graph import RecommendedBook, RecommendationPayload, book_recommendation_graph, extract_text
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,8 +36,8 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    reply: str
-    recommendations: list[object] = Field(default_factory=list)
+    reply: str = ""
+    recommendations: list[RecommendedBook]
 
 
 @app.get("/health")
@@ -54,10 +55,9 @@ def chat(request: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=422, detail="The last message must be from the user.")
     try:
         result = book_recommendation_graph.invoke({"messages": messages})
-        reply = extract_text(result["messages"][-1].content).strip()
-        if not reply:
-            raise RuntimeError("The model returned no visible text.")
-        return ChatResponse(reply=reply)
+        raw_payload = extract_text(result["messages"][-1].content).strip()
+        payload = RecommendationPayload.model_validate(json.loads(raw_payload))
+        return ChatResponse(recommendations=payload.books)
     except HTTPException:
         raise
     except Exception as error:

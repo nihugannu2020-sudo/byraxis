@@ -1,59 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, BookOpen, Star, Sparkles, Cpu, GitBranch } from 'lucide-react';
+import { Send, BookOpen, Sparkles, Cpu, GitBranch } from 'lucide-react';
 import type { Message, Book } from './types';
-import { sendMessage } from './services/chatApi';
+import { enrichBookMetadata, sendMessage } from './services/chatApi';
 
-// ─── Typewriter Effect ─────────────────────────────────────────────────────────
-const DynamicText = ({ text, speed = 15 }: { text: string; speed?: number }) => {
-  const [displayedText, setDisplayedText] = useState('');
-  const indexRef = useRef(0);
-
-  useEffect(() => {
-    setDisplayedText('');
-    indexRef.current = 0;
-
-    const interval = setInterval(() => {
-      if (indexRef.current < text.length) {
-        setDisplayedText(prev => prev + text.charAt(indexRef.current));
-        indexRef.current += 1;
-      } else {
-        clearInterval(interval);
-      }
-    }, speed);
-
-    return () => clearInterval(interval);
-  }, [text, speed]);
-
-  return <span>{displayedText}</span>;
-};
 
 // ─── Book Card ─────────────────────────────────────────────────────────────────
 const BookCard = ({ book }: { book: Book }) => {
-  const hasReason = book.description.includes('*Why it matches:');
-  const mainDesc = hasReason ? book.description.split('\n\n*Why it matches:')[0] : book.description;
-  const reasonText = hasReason ? book.description.split('*Why it matches: ')[1]?.replace(/\*/g, '') : null;
+  const stars = (rating: number) => {
+    const whole = Math.floor(rating);
+    return `${'★'.repeat(whole)}${rating - whole >= 0.5 ? '½' : ''}${'☆'.repeat(5 - whole - (rating - whole >= 0.5 ? 1 : 0))}`;
+  };
 
   return (
     <div className="book-card">
       <div className="book-cover-container">
-        <img src={book.coverImage} alt={book.title} className="book-cover" />
-        {book.rating && (
-          <div className="rating-tag">
-            <Star size={13} className="rating-star" />
-            {book.rating.toFixed(1)}
-          </div>
+        {book.coverImage ? (
+          <img src={book.coverImage} alt={`${book.title} cover`} className="book-cover" />
+        ) : (
+          <div className="book-cover-placeholder"><BookOpen size={32} /></div>
         )}
       </div>
       <div className="book-info">
-        <span className="book-category">{book.category}</span>
         <h4 className="book-title">{book.title}</h4>
         <p className="book-author">by {book.author}</p>
-        <p className="book-desc">{mainDesc}</p>
-        {reasonText && (
-          <div className="book-reason">
-            💡 {reasonText}
-          </div>
-        )}
+        {book.rating !== undefined && <p className="book-rating" aria-label={`${book.rating} out of 5 stars`}>{stars(book.rating)}</p>}
+        <p className="book-desc">{book.summary}</p>
+        <p className="book-meta">{book.genre} <span>•</span> {book.vibe}</p>
       </div>
     </div>
   );
@@ -95,17 +67,25 @@ function App() {
 
     try {
       const response = await sendMessage([...messages, newUserMessage]);
+      const botMessageId = (Date.now() + 1).toString();
+      const historyContent = `Recommended: ${response.recommendations.map(book => `${book.title} — ${book.author}`).join('; ')}`;
       setMessages(prev => [
         ...prev,
         {
-          id: Date.now().toString(),
+          id: botMessageId,
           role: 'bot',
           content: response.reply,
+          historyContent,
           recommendations: response.recommendations,
         },
       ]);
+      void Promise.all(response.recommendations.map(enrichBookMetadata)).then(enrichedBooks => {
+        setMessages(prev => prev.map(message => (
+          message.id === botMessageId ? { ...message, recommendations: enrichedBooks } : message
+        )));
+      });
     } catch (error: any) {
-      console.error('Book Nook API error:', error);
+      console.error('Bryaxis API error:', error);
 
       let errorMsg = "Unable to connect to Bryaxis. Please make sure the backend is running.";
       if (error?.message?.includes('429')) {
@@ -194,15 +174,13 @@ function App() {
               )}
 
               <div className={msg.role === 'bot' ? 'bot-container' : ''}>
-                <div className={`message ${msg.role}`}>
-                  {msg.role === 'bot' ? (
-                    <DynamicText text={msg.content} speed={15} />
-                  ) : (
-                    msg.content
-                  )}
-                </div>
+                {msg.content && (
+                  <div className={`message ${msg.role}`}>
+                  {msg.content}
+                  </div>
+                )}
 
-                {msg.recommendations && (
+                {msg.recommendations?.length === 3 && (
                   <div className="recommendations">
                     {msg.recommendations.map(book => (
                       <BookCard key={book.id} book={book} />

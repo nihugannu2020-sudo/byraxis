@@ -331,6 +331,16 @@ body {
   gap: 3px;
 }
 
+.book-cover-placeholder {
+  color: var(--win-teal-dark);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f9d9db, #d8e7e2);
+}
+
 .rating-star {
   color: #ffeb3b;
   fill: #ffeb3b;
@@ -369,6 +379,13 @@ body {
   margin-bottom: 6px;
 }
 
+.book-rating {
+  color: #d08b00;
+  letter-spacing: 1px;
+  font-size: 16px;
+  margin: -2px 0 6px;
+}
+
 .book-desc {
   font-family: var(--pixel-font);
   font-size: 16px;
@@ -385,6 +402,18 @@ body {
   padding: 4px 6px;
   margin-top: auto;
   color: #3f5953;
+}
+
+.book-meta {
+  font-family: var(--pixel-font);
+  font-size: 15px;
+  color: #3f5953;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.book-meta span {
+  color: var(--win-pink-dark);
 }
 
 /* Prompt Chips & Input Form */

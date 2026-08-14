@@ -7,15 +7,15 @@ interface ApiMessage {
 
 export interface ChatResponse {
   reply: string;
-  recommendations?: Book[];
+  recommendations: Book[];
 }
 
 const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 export async function sendMessage(messages: Message[]): Promise<ChatResponse> {
-  const conversation: ApiMessage[] = messages.map(message => ({
+  const conversation: ApiMessage[] = messages.slice(-8).map(message => ({
     role: message.role === 'bot' ? 'assistant' : 'user',
-    content: message.content,
+    content: message.historyContent ?? message.content,
   }));
 
   const response = await fetch(`${apiUrl}/chat`, {
@@ -30,5 +30,36 @@ export async function sendMessage(messages: Message[]): Promise<ChatResponse> {
     throw new Error(`Backend request failed (${response.status})${detail}`);
   }
 
-  return response.json() as Promise<ChatResponse>;
+  const result = await response.json() as ChatResponse;
+  return {
+    ...result,
+    recommendations: result.recommendations.map(book => ({
+      ...book,
+      id: `${book.title}-${book.author}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    })),
+  };
+}
+
+interface GoogleBooksVolume {
+  volumeInfo?: {
+    imageLinks?: { thumbnail?: string };
+    averageRating?: number;
+  };
+}
+
+export async function enrichBookMetadata(book: Book): Promise<Book> {
+  try {
+    const query = encodeURIComponent(`intitle:${book.title} inauthor:${book.author}`);
+    const response = await fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=${query}&maxResults=1&fields=items(volumeInfo/imageLinks,volumeInfo/averageRating)`,
+    );
+    if (!response.ok) return book;
+    const data = await response.json() as { items?: GoogleBooksVolume[] };
+    const volume = data.items?.[0]?.volumeInfo;
+    const coverImage = volume?.imageLinks?.thumbnail?.replace('http://', 'https://');
+    const rating = typeof volume?.averageRating === 'number' ? volume.averageRating : undefined;
+    return { ...book, coverImage, rating };
+  } catch {
+    return book;
+  }
 }
